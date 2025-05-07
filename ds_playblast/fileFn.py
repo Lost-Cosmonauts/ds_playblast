@@ -1,6 +1,9 @@
 """Common file operations"""
-import pymel.core as pm
+
 import json
+
+import pymel.core as pm
+
 from ds_playblast import Logger
 
 
@@ -13,7 +16,11 @@ def write_json(path, data={}, as_string=False, sort_keys=True):
     try:
         with open(path, "w") as json_file:
             if as_string:
-                json_file.write(json.dumps(data, sort_keys=sort_keys, indent=4, separators=(",", ":")))
+                json_file.write(
+                    json.dumps(
+                        data, sort_keys=sort_keys, indent=4, separators=(",", ":")
+                    )
+                )
             else:
                 json.dump(data, json_file, indent=4)
 

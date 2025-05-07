@@ -1,7 +1,8 @@
-import sys
 import inspect
 import logging
 import logging.handlers
+import sys
+
 from PySide2 import QtCore
 
 
@@ -29,7 +30,10 @@ class Logger:
                 cls._logger_obj.setLevel(cls.LEVEL_DEFAULT)
                 cls.set_propagate(cls.PROPAGATE_DEFAULT)
                 # Formatters
-                fmt = logging.Formatter(cls.FORMAT_DEFAULT.format(cls.LOGGER_NAME), datefmt="%d-%m-%Y %H:%M:%S")
+                fmt = logging.Formatter(
+                    cls.FORMAT_DEFAULT.format(cls.LOGGER_NAME),
+                    datefmt="%d-%m-%Y %H:%M:%S",
+                )
                 qt_fmt = logging.Formatter("[%(levelname)s] %(message)s")
                 # Handlers
                 # Stream
@@ -72,7 +76,9 @@ class Logger:
     @classmethod
     def call_info(cls, message):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
-        message = "file: {0} function {1}() lineno:{2}-{3}".format(caller.filename, caller.function, caller.lineno, message)
+        message = "file: {0} function {1}() lineno:{2}-{3}".format(
+            caller.filename, caller.function, caller.lineno, message
+        )
 
     @classmethod
     def debug(cls, msg, *args, **kwargs):
@@ -110,13 +116,22 @@ class Logger:
         lg.exception(msg, *args, **kwargs)
 
     @classmethod
-    def write_to_rotating_file(cls, path, level=logging.ERROR, mode="w", max_bytes=1024):
+    def write_to_rotating_file(
+        cls, path, level=logging.ERROR, mode="w", max_bytes=1024
+    ):
         lg = cls.logger_obj()
-        if any([isinstance(handler, logging.handlers.RotatingFileHandler) for handler in lg.handlers]):
+        if any(
+            [
+                isinstance(handler, logging.handlers.RotatingFileHandler)
+                for handler in lg.handlers
+            ]
+        ):
             lg.warning("Rotating file hander already exists")
             return
 
-        rfile_hander = logging.handlers.RotatingFileHandler(path, mode=mode, maxBytes=max_bytes, backupCount=0, delay=0)
+        rfile_hander = logging.handlers.RotatingFileHandler(
+            path, mode=mode, maxBytes=max_bytes, backupCount=0, delay=0
+        )
         rfile_hander.setLevel(level)
         fmt = logging.Formatter("[%(asctime)s][%(levelname)s] %(message)s")
         rfile_hander.setFormatter(fmt)

@@ -1,16 +1,15 @@
 import os
-import pymel.core as pm
-import pymel.api as pma
 
-from PySide2 import QtWidgets
-from PySide2 import QtCore
+import pymel.api as pma
+import pymel.core as pm
+import qt_widgets_lib.py2 as widgets_lib
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
+from PySide2 import QtCore, QtWidgets
 from shiboken2 import getCppPointer
 
-from ds_playblast import Logger
-from ds_playblast import Config
-import qt_widgets_lib.py2 as widgets_lib
 import ds_playblast.playblastFn as playblastFn
+from ds_playblast import Config, Logger
+
 Logger.write_to_rotating_file("playblast.log")
 
 
@@ -78,23 +77,47 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.vert_splitter = QtWidgets.QSplitter()
         self.vert_splitter.setOrientation(QtCore.Qt.Vertical)
         # Time
-        self.time_range_wgt = widgets_lib.TimeRangeWidget(title="Time", mode=1, range_func=playblastFn.get_playback_range)
+        self.time_range_wgt = widgets_lib.TimeRangeWidget(
+            title="Time", mode=1, range_func=playblastFn.get_playback_range
+        )
         # Image group
         self.image_grp = QtWidgets.QGroupBox("Image")
         self.resolutions_box = QtWidgets.QComboBox()
         for item in playblastFn.RESOLUTIONS:
             self.resolutions_box.addItem(item[0], item[1])
 
-        self.quality_field = widgets_lib.SliderFieldWidget(data_type="int", label_text="Quality:", min_value=0, max_value=100, default_value=100)
-        self.scale_field = widgets_lib.SliderFieldWidget(data_type="float", label_text="Scale:", min_value=0.1, max_value=1.0, default_value=1.0, step=0.1, slider_multiplier=100.0)
-        self.padding_field = widgets_lib.SliderFieldWidget(data_type="int", label_text="Frame padding:", min_value=0, max_value=4, default_value=4)
+        self.quality_field = widgets_lib.SliderFieldWidget(
+            data_type="int",
+            label_text="Quality:",
+            min_value=0,
+            max_value=100,
+            default_value=100,
+        )
+        self.scale_field = widgets_lib.SliderFieldWidget(
+            data_type="float",
+            label_text="Scale:",
+            min_value=0.1,
+            max_value=1.0,
+            default_value=1.0,
+            step=0.1,
+            slider_multiplier=100.0,
+        )
+        self.padding_field = widgets_lib.SliderFieldWidget(
+            data_type="int",
+            label_text="Frame padding:",
+            min_value=0,
+            max_value=4,
+            default_value=4,
+        )
         # Output group
         self.output_grp = QtWidgets.QGroupBox("Output")
-        self.out_file_path = widgets_lib.PathWidget(mode="save_file",
-                                                    label_text="Output file:",
-                                                    dialog_label="Set output file path",
-                                                    file_filters="MP4 video (*.mp4)",
-                                                    selected_filter="MP4 video (*.mp4)")
+        self.out_file_path = widgets_lib.PathWidget(
+            mode="save_file",
+            label_text="Output file:",
+            dialog_label="Set output file path",
+            file_filters="MP4 video (*.mp4)",
+            selected_filter="MP4 video (*.mp4)",
+        )
         self.open_viewer_option = QtWidgets.QCheckBox("Open viewer")
         self.ornaments_option = QtWidgets.QCheckBox("Show ornaments")
         self.remove_temp_option = QtWidgets.QCheckBox("Remove temporary files")
@@ -138,7 +161,9 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
     def create_connections(self):
         self.run_playblast_btn.clicked.connect(self.run_playblast)
-        Logger.signal_handler().emitter.message_logged.connect(self.logger_output.appendPlainText)
+        Logger.signal_handler().emitter.message_logged.connect(
+            self.logger_output.appendPlainText
+        )
         self.playblasting.connect(self.update_splitter)
 
     def load_config(self):
@@ -187,20 +212,22 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         avi_path = output_path.replace(".mp4", ".avi")
         time_range = self.time_range_wgt.get_range()
         Logger.info("Running playblast...")
-        pm.playblast(f=avi_path,
-                     cc=self.clear_cache_option.isChecked(),
-                     orn=self.ornaments_option.isChecked(),
-                     qlt=self.quality_field.value,
-                     os=self.offscreen_option.isChecked(),
-                     fp=self.padding_field.value,
-                     h=self.resolutions_box.currentData()[1],
-                     w=self.resolutions_box.currentData()[0],
-                     p=self.scale_field.value * 100,
-                     st=time_range[0],
-                     et=time_range[1],
-                     v=False,
-                     fmt="avi",
-                     fo=1)
+        pm.playblast(
+            f=avi_path,
+            cc=self.clear_cache_option.isChecked(),
+            orn=self.ornaments_option.isChecked(),
+            qlt=self.quality_field.value,
+            os=self.offscreen_option.isChecked(),
+            fp=self.padding_field.value,
+            h=self.resolutions_box.currentData()[1],
+            w=self.resolutions_box.currentData()[0],
+            p=self.scale_field.value * 100,
+            st=time_range[0],
+            et=time_range[1],
+            v=False,
+            fmt="avi",
+            fo=1,
+        )
         Logger.info("Converting to mp4...")
         playblastFn.convert_avi_to_mp4(avi_path, output_path)
         # Cleanup
@@ -214,7 +241,9 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 if __name__ == "__main__":
     try:
         if playblast_window and playblast_window.parent():  # noqa: F821
-            workspace_control_name = playblast_window.parent().objectName()  # noqa: F821
+            workspace_control_name = (
+                playblast_window.parent().objectName()
+            )  # noqa: F821
 
             if pm.window(workspace_control_name, ex=1, q=1):
                 pm.deleteUI(workspace_control_name)

@@ -1,13 +1,18 @@
 import os
 import shutil
+
 import pymel.core as pm
 
 import ds_playblast.fileFn as fileFn
 
 
 class Config:
-    DEFAULT_CONFIG_PATH = os.path.join(pm.moduleInfo(mn="ds_playblast", p=1), "config", "default.json")
-    FILE_PATH = os.path.join(pm.moduleInfo(mn="ds_playblast", p=1), "config", "user.json")
+    DEFAULT_CONFIG_PATH = os.path.join(
+        pm.moduleInfo(mn="ds_playblast", p=1), "config", "default.json"
+    )
+    FILE_PATH = os.path.join(
+        pm.moduleInfo(mn="ds_playblast", p=1), "config", "user.json"
+    )
 
     @classmethod
     def load(cls):
@@ -58,7 +63,7 @@ class Config:
         """
         shutil.copy2(cls.DEFAULT_CONFIG_PATH, cls.CONFIG_PATH)
 
-    @ classmethod
+    @classmethod
     def get_config_path(cls):
         """Get path to config file. Copy a default one if one doesn't exist.
 
