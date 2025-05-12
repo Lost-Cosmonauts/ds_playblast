@@ -53,3 +53,29 @@ def convert_avi_to_mp4(input_path, output_path):
     return_code = ffmpeg_process.wait()
     if return_code:
         raise subprocess.CalledProcessError(return_code, cmd_args)
+
+
+def concat_videos(input_paths, output_path):
+    cmd_args = [get_ffmpeg_path()]
+    concat_input = "concat:"
+    for input_path in input_paths:
+        if not input_path:
+            continue
+        if not os.access(input_path, os.X_OK):
+            continue
+        concat_input += f"{input_path}|"
+    concat_input = concat_input[:-1]
+    cmd_args.extend(["-i", concat_input])
+    cmd_args.extend(["-c", "copy", output_path, "-y"])
+    ffmpeg_process = subprocess.Popen(
+        cmd_args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+    )
+    for std_out_line in iter(ffmpeg_process.stdout.readline, ""):
+        Logger.info(std_out_line.strip())
+    ffmpeg_process.stdout.close()
+    return_code = ffmpeg_process.wait()
+    if return_code:
+        raise subprocess.CalledProcessError(return_code, cmd_args)

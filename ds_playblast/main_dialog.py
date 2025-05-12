@@ -1,13 +1,15 @@
 import os
+from pathlib import Path
 
+import maya.cmds as cmds
 import pymel.api as pma
 import pymel.core as pm
-import qt_widgets_lib.py2 as widgets_lib
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 from PySide2 import QtCore, QtWidgets
 from shiboken2 import getCppPointer
 
 import ds_playblast.playblastFn as playblastFn
+import qt_widgets_lib.py2 as widgets_lib
 from ds_playblast import Config, Logger
 
 Logger.write_to_rotating_file("playblast.log")
@@ -31,6 +33,8 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     UI_NAME = "dsPlayblast"
     UI_SCRIPT = "import ds_playblast\nds_playblast.MainDialog()"
     UI_INSTANCE = None
+
+    DROPBOX_PARENT_PATH = "Lost Cosmonauts Dropbox/Lost Cosmonauts/Ayon/"
 
     playblasting = QtCore.Signal(bool)
 
@@ -123,10 +127,18 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.remove_temp_option = QtWidgets.QCheckBox("Remove temporary files")
         self.offscreen_option = QtWidgets.QCheckBox("Render offscreen")
         self.clear_cache_option = QtWidgets.QCheckBox("Clear cache")
+        self.cut_context_option = QtWidgets.QCheckBox("Export in context")
         # Other
         self.run_playblast_btn = QtWidgets.QPushButton("Playblast")
         self.logger_output = QtWidgets.QPlainTextEdit()
         self.logger_output.setReadOnly(True)
+
+    def is_workspace(self):
+        scene_file = cmds.file(q=True, sn=True)
+        print(scene_file)
+        ret = self.DROPBOX_PARENT_PATH in scene_file
+        print("is_workspace: ", ret)
+        return ret
 
     def create_layouts(self):
         image_layout = QtWidgets.QVBoxLayout()
@@ -137,12 +149,14 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.image_grp.setLayout(image_layout)
 
         output_layout = QtWidgets.QVBoxLayout()
-        output_layout.addWidget(self.out_file_path)
+        if not self.is_workspace():
+            output_layout.addWidget(self.out_file_path)
         output_layout.addWidget(self.open_viewer_option)
         output_layout.addWidget(self.ornaments_option)
         output_layout.addWidget(self.remove_temp_option)
         output_layout.addWidget(self.offscreen_option)
         output_layout.addWidget(self.clear_cache_option)
+        output_layout.addWidget(self.cut_context_option)
         self.output_grp.setLayout(output_layout)
 
         self.scroll_wgt.add_widget(self.time_range_wgt)
@@ -178,6 +192,7 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.remove_temp_option.setChecked(config_dict.get("out.remove_temp", True))
         self.offscreen_option.setChecked(config_dict.get("out.offscreen", False))
         self.clear_cache_option.setChecked(config_dict.get("out.clear_cache", True))
+        self.cut_context_option.setChecked(config_dict.get("out.cut_context", True))
 
     def save_config(self):
         new_config = {}
@@ -191,6 +206,7 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         new_config["out.remove_temp"] = self.remove_temp_option.isChecked()
         new_config["out.offscreen"] = self.offscreen_option.isChecked()
         new_config["out.clear_cache"] = self.clear_cache_option.isChecked()
+        new_config["out.cut_context"] = self.cut_context_option.isChecked()
         Config.update(new_config)
 
     def update_splitter(self, is_playblasting):
@@ -203,7 +219,25 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
     def run_playblast(self):
         self.playblasting.emit(True)
-        output_path = self.out_file_path.path  # type: str
+        has_context = self.is_workspace()
+        open_context = has_context and self.cut_context_option.isChecked()
+        if has_context:
+            scene_name = str(cmds.file(q=True, sn=True))
+            parent = scene_name.find(self.DROPBOX_PARENT_PATH)
+            base_path = scene_name[: parent + len(self.DROPBOX_PARENT_PATH)]
+            path = scene_name[parent + len(self.DROPBOX_PARENT_PATH) :]
+            print(parent, base_path, path)
+            project, version, group, clip, seq, shot, file = path.split("/")
+            prefix, _seq, _shot, _group, iteration = file.rsplit(".", 1)[0].split("_")
+            seq_num = int(seq.replace("Seq", ""))
+            shot_num = int(shot.split("_")[1])
+            new_path = Path(base_path)
+            new_path = new_path / project / version / "playblasts" / group / clip
+            new_path.mkdir(parents=True, exist_ok=True)
+            new_path = new_path / file.replace(".ma", ".mp4")
+            output_path = str(new_path)  # type: str
+        else:
+            output_path = self.out_file_path.path  # type: str
         if not os.path.isdir(os.path.dirname(output_path)):
             Logger.error("Invalid output file: {0}".format(output_path))
             return
@@ -232,10 +266,80 @@ class MainDialog(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         playblastFn.convert_avi_to_mp4(avi_path, output_path)
         # Cleanup
         os.remove(avi_path)
+        if has_context:
+            before_path = self.iter_shot(
+                base_path, project, version, group, clip, seq_num, shot_num, prefix, -1
+            )
+            after_path = self.iter_shot(
+                base_path, project, version, group, clip, seq_num, shot_num, prefix, 1
+            )
+            playblastFn.concat_videos(
+                [before_path, output_path, after_path],
+                output_path.replace(".mp4", "_context.mp4"),
+            )
         if self.open_viewer_option.isChecked():
-            os.startfile(output_path)
+            if open_context:
+                os.startfile(output_path.replace(".mp4", "_context.mp4"))
+            else:
+                os.startfile(output_path)
         Logger.info("Done.")
         self.playblasting.emit(False)
+
+    def iter_shot(
+        self,
+        base_path: str,
+        project: str,
+        version: str,
+        group: str,
+        clip: str,
+        seq_num: int,
+        shot_num: int,
+        prefix: str,
+        inc: int,
+    ):
+        if inc == 0:
+            return None
+        inc_fixed = 1 if inc > 0 else -1
+        new_path = Path(base_path)
+        new_path = new_path / project / version / "playblasts" / group / clip
+        new_shot_num = shot_num + inc * 10
+        new_seq_num = seq_num
+        new_seq = str(new_seq_num).zfill(2)
+        new_shot = str(new_shot_num).zfill(3)
+        new_shot_path = new_path / f"Seq{new_seq}" / f"{new_seq}_{new_shot}"
+        has_shot = False
+        paths = []
+        if new_shot_path.is_dir():
+            paths = list(
+                new_shot_path.glob(f"{prefix}_{new_seq}_{new_shot}_{group}_v*.ma")
+            )
+            if paths and len(paths) > 0:
+                has_shot = True
+        if not has_shot:
+            new_seq_num = seq_num + inc_fixed
+            new_seq = str(new_seq_num).zfill(2)
+            new_seq_path = new_path / f"Seq{new_seq}"
+            shot_paths = list(new_seq_path.glob(f"{new_seq}_*"))
+            if shot_paths and len(shot_paths) >= abs(inc):
+                new_shot_path = None
+                if inc > 0:
+                    new_shot_path = shot_paths[inc - 1]
+                elif inc < 0:
+                    new_shot_path = shot_paths[len(shot_paths) + inc]
+                if new_shot_path and new_shot_path.is_dir():
+                    paths = list(
+                        new_shot_path.glob(
+                            f"{prefix}_{new_seq}_{new_shot}_{group}_v*.ma"
+                        )
+                    )
+                    if paths and len(paths) > 0:
+                        has_shot = True
+        if has_shot:
+            paths = sorted(paths, key=lambda x: str(x))
+            return paths[len(paths) - 1]
+        else:
+            # TODO: more?
+            return None
 
 
 if __name__ == "__main__":

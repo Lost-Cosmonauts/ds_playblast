@@ -4,7 +4,7 @@ import json
 
 import pymel.core as pm
 
-from ds_playblast import Logger
+from ds_playblast.logger import Logger
 
 
 def module_dir():
